@@ -14,12 +14,13 @@ from app.auth import (
     build_rest_principal_dependency,
 )
 from app.collaboration.audit import AuditLog
-from app.collaboration.github import GitHubReadClient
+from app.collaboration.github import GitHubReadClient, GitHubWriteClient
 from app.config import Settings, get_settings
 from app.core.check_status import (
     CheckStatusService,
     CredentialUnavailableStatusService,
 )
+from app.core.open_pr import OpenPrService, WriteDisabledOpenPrService
 from app.core.content_search import ContentSearch
 from app.core.project_context import ProjectContextAssembler
 from app.core.snapshot import Snapshot, validate_snapshot
@@ -92,6 +93,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status: CheckStatusService | CredentialUnavailableStatusService = (
             CredentialUnavailableStatusService()
         )
+        pr_writes: OpenPrService | WriteDisabledOpenPrService = (
+            WriteDisabledOpenPrService()
+        )
     else:
         assert provider is not None
         require_contributor = build_rest_principal_dependency(provider)
@@ -99,6 +103,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             GitHubReadClient(settings.github_actions_read_token),
             AuditLog(settings.audit_log_path),
         )
+        if settings.enable_write_actions:
+            pr_writes = OpenPrService(
+                GitHubWriteClient(settings.github_pr_write_token),
+                AuditLog(settings.audit_log_path),
+            )
+        else:
+            pr_writes = WriteDisabledOpenPrService()
 
     mcp_server = create_mcp_server(
         settings,
@@ -108,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         projects=data.projects,
         symbols=data.symbols,
         statuses=status,
+        pr_writes=pr_writes,
     )
     mcp_http_app = mcp_server.http_app(
         path=settings.mcp_path,

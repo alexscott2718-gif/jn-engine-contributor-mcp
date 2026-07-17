@@ -235,6 +235,7 @@ class Settings(BaseModel):
     github_actions_read_token_file: Path = Path(
         "/secrets/github_actions_read_token"
     )
+    github_pr_write_token_file: Path = Path("/secrets/github_pr_write_token")
     audit_log_path: Path = Path("/audit/tool_calls.ndjson")
     oauth_jwt_signing_key_file: Path = Path("/secrets/oauth_jwt_signing_key")
     oauth_allowed_client_redirect_uris: tuple[str, ...] = ()
@@ -285,10 +286,16 @@ class Settings(BaseModel):
             raise ValueError(
                 "EXPECTED_REF is a fixed manifest assertion and cannot redirect the service"
             )
-        if self.enable_write_actions:
-            raise ValueError("ENABLE_WRITE_ACTIONS=true is forbidden in the read-only MVP")
         if self.enable_shell_actions:
-            raise ValueError("ENABLE_SHELL_ACTIONS=true is forbidden in the read-only MVP")
+            raise ValueError("ENABLE_SHELL_ACTIONS=true is forbidden")
+        if self.enable_write_actions and self.service_profile != "engine":
+            raise ValueError(
+                "ENABLE_WRITE_ACTIONS is only valid for the engine profile"
+            )
+        if self.enable_write_actions and self.auth_mode == "authless_local":
+            raise ValueError(
+                "ENABLE_WRITE_ACTIONS requires an authenticated deployment"
+            )
         if not 30 <= self.github_collab_cache_ttl_seconds <= 900:
             raise ValueError("GITHUB_COLLAB_CACHE_TTL_SECONDS must be in 30..900")
         if not 15 <= self.github_collab_negative_ttl_seconds <= 300:
@@ -372,6 +379,8 @@ class Settings(BaseModel):
         secret_paths = [self.oauth_jwt_signing_key_file]
         if self.service_profile == "engine":
             secret_paths.append(self.github_actions_read_token_file)
+        if self.enable_write_actions:
+            secret_paths.append(self.github_pr_write_token_file)
         if self.auth_mode == "github":
             client_id = self.github_oauth_client_id
             if (
@@ -416,6 +425,12 @@ class Settings(BaseModel):
                 label="MCP enrollment secret",
                 minimum_bytes=16,
             )
+        if self.enable_write_actions:
+            read_private_text_secret(
+                self.github_pr_write_token_file,
+                label="GitHub PR write token",
+                minimum_bytes=20,
+            )
         read_private_secret_bytes(
             self.oauth_jwt_signing_key_file,
             label="OAuth JWT signing key",
@@ -446,6 +461,14 @@ class Settings(BaseModel):
         return read_private_text_secret(
             self.github_actions_read_token_file,
             label="GitHub Actions read token",
+            minimum_bytes=20,
+        )
+
+    def github_pr_write_token(self) -> str:
+        """Load the dedicated jn-engine PR-write credential (contents: write, PRs: write)."""
+        return read_private_text_secret(
+            self.github_pr_write_token_file,
+            label="GitHub PR write token",
             minimum_bytes=20,
         )
 
@@ -517,6 +540,12 @@ class Settings(BaseModel):
                     value(
                         "GITHUB_ACTIONS_READ_TOKEN_FILE",
                         "/secrets/github_actions_read_token",
+                    )
+                ),
+                github_pr_write_token_file=Path(
+                    value(
+                        "GITHUB_PR_WRITE_TOKEN_FILE",
+                        "/secrets/github_pr_write_token",
                     )
                 ),
                 audit_log_path=Path(

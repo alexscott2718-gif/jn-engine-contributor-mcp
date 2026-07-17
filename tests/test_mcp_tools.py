@@ -1,4 +1,4 @@
-"""Exact six-tool MCP contracts over the real immutable snapshot."""
+"""Exact seven-tool MCP contracts over the real immutable snapshot."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from app.mcp.server import create_mcp_server
 from app.models.content import FetchOutput, SearchToolOutput
 from app.models.projects import ProjectContextOutput
 from app.models.symbols import SymbolLookupOutput
+from app.models.pr import OpenPrOutput
 from app.models.status import CheckStatusOutput
 from app.models.tasks import TaskListOutput
 
@@ -42,6 +43,7 @@ EXPECTED_TOOLS = [
     "project_context",
     "lookup_symbol",
     "check_status",
+    "open_pr",
 ]
 
 
@@ -56,13 +58,29 @@ class _UnusedStatusService:
         raise AssertionError("live status service is not used by immutable-tool tests")
 
 
+class _UnusedOpenPrService:
+    error = None
+    last_kwargs = None
+
+    def open_pr(self, **_kwargs):
+        self.last_kwargs = _kwargs
+        if self.error is not None:
+            raise self.error
+        raise AssertionError("PR write service is not used by immutable-tool tests")
+
+
 @pytest.fixture(scope="module")
 def status_service():
     return _UnusedStatusService()
 
 
 @pytest.fixture(scope="module")
-def mcp_server(status_service):
+def open_pr_service():
+    return _UnusedOpenPrService()
+
+
+@pytest.fixture(scope="module")
+def mcp_server(status_service, open_pr_service):
     settings = Settings(
         auth_mode="authless_local",
         api_host="127.0.0.1",
@@ -78,6 +96,7 @@ def mcp_server(status_service):
         projects=data.projects,
         symbols=data.symbols,
         statuses=status_service,
+        pr_writes=open_pr_service,
     )
 
 
@@ -124,7 +143,7 @@ def _run(tool, arguments):
     return asyncio.run(tool.run(arguments))
 
 
-def test_exact_six_tools_descriptions_schemas_and_annotations(mcp_server):
+def test_exact_seven_tools_descriptions_schemas_and_annotations(mcp_server):
     tools = _tools(mcp_server)
     assert list(tools) == EXPECTED_TOOLS
     schemas = {
@@ -134,6 +153,7 @@ def test_exact_six_tools_descriptions_schemas_and_annotations(mcp_server):
         "project_context": ProjectContextOutput.model_json_schema(),
         "lookup_symbol": SymbolLookupOutput.model_json_schema(),
         "check_status": CheckStatusOutput.model_json_schema(),
+        "open_pr": OpenPrOutput.model_json_schema(),
     }
     for name, tool in tools.items():
         assert tool.description
@@ -143,10 +163,12 @@ def test_exact_six_tools_descriptions_schemas_and_annotations(mcp_server):
         )
         expected_output_schema.pop("$defs", None)
         assert tool.output_schema == expected_output_schema
-        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.readOnlyHint is (name != "open_pr")
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.idempotentHint is True
-        assert tool.annotations.openWorldHint is (name == "check_status")
+        assert tool.annotations.openWorldHint is (
+            name in ("check_status", "open_pr")
+        )
 
 
 def test_no_resources_or_prompts_are_registered(mcp_server):
