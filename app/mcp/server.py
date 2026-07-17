@@ -1,4 +1,4 @@
-"""Six authenticated read-only MCP tools over frozen and live data."""
+"""Seven authenticated MCP tools: six reads plus the PR-only write path."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from app.core.check_status import (
     CheckStatusService,
     CredentialUnavailableStatusService,
 )
+from app.core.open_pr import OpenPrService, WriteDisabledOpenPrService
 from app.core.content_search import (
     ContentSearch,
     SearchEngineError,
@@ -42,6 +43,7 @@ from app.models.content import (
 )
 from app.models.projects import ProjectContextOutput, project_context_output
 from app.models.symbols import SymbolLookupOutput, symbol_lookup_output
+from app.models.pr import OpenPrOutput, open_pr_output
 from app.models.status import CheckStatusOutput, check_status_output
 from app.models.tasks import TaskListOutput, task_list_output
 
@@ -58,6 +60,13 @@ READ_ONLY_ANNOTATIONS = {
 
 LIVE_READ_ONLY_ANNOTATIONS = {
     **READ_ONLY_ANNOTATIONS,
+    "openWorldHint": True,
+}
+
+PR_WRITE_ANNOTATIONS = {
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": True,
     "openWorldHint": True,
 }
 
@@ -86,6 +95,7 @@ def create_mcp_server(
     projects: ProjectContextAssembler,
     symbols: SymbolIndex,
     statuses: CheckStatusService | CredentialUnavailableStatusService,
+    pr_writes: OpenPrService | WriteDisabledOpenPrService,
 ) -> FastMCP:
     server = FastMCP(
         settings.app_name,
@@ -229,6 +239,37 @@ def create_mcp_server(
                     pr=pr,
                     branch=branch,
                     commit=commit,
+                    caller_identity=_caller_identity(),
+                )
+            )
+        except CollaborationError as exc:
+            raise tool_error(exc) from exc
+
+    @server.tool(
+        description=(
+            "Propose a JN Engine change without a maintainer token: create a "
+            "contrib/ branch from master with the provided UTF-8 files and open "
+            "one pull request. Never pushes to master; requires an "
+            "idempotency_key so retries return the same pull request."
+        ),
+        output_schema=OpenPrOutput.model_json_schema(),
+        annotations=PR_WRITE_ANNOTATIONS,
+    )
+    def open_pr(
+        branch: Annotated[str, Field(min_length=9, max_length=89)],
+        title: Annotated[str, Field(min_length=1, max_length=120)],
+        files: list[dict],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=64)],
+        body: Annotated[str, Field(max_length=10_000)] = "",
+    ) -> OpenPrOutput:
+        try:
+            return open_pr_output(
+                pr_writes.open_pr(
+                    branch=branch,
+                    title=title,
+                    body=body,
+                    files=files,
+                    idempotency_key=idempotency_key,
                     caller_identity=_caller_identity(),
                 )
             )

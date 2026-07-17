@@ -13,6 +13,8 @@ CollaborationErrorCode = Literal[
     "upstream_unavailable",
     "bad_args",
     "not_found",
+    "write_disabled",
+    "conflict",
 ]
 
 
@@ -45,6 +47,17 @@ def not_found() -> CollaborationError:
         "not_found",
         "the requested pull request, branch, or commit was not found",
     )
+
+
+def write_disabled() -> CollaborationError:
+    return CollaborationError(
+        "write_disabled",
+        "pull-request writes are disabled on this deployment",
+    )
+
+
+def conflict(detail: str) -> CollaborationError:
+    return CollaborationError("conflict", detail)
 
 
 def tool_error(error: CollaborationError) -> ToolError:

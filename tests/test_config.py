@@ -35,7 +35,6 @@ def test_authless_local_requires_loopback(snapshot: Path):
     [
         ("expected_repository", "someone/else", "manifest assertion"),
         ("expected_ref", "refs/heads/main", "manifest assertion"),
-        ("enable_write_actions", True, "forbidden"),
         ("enable_shell_actions", True, "forbidden"),
     ],
 )
@@ -48,6 +47,41 @@ def test_hard_safety_values_fail(
 ):
     with pytest.raises(ValidationError, match=message):
         make_github_settings(tmp_path, snapshot, **{field: value})
+
+
+def test_write_actions_require_the_dedicated_pr_write_credential(
+    tmp_path: Path,
+    snapshot: Path,
+):
+    from tests.conftest import write_private
+
+    with pytest.raises(ValidationError):
+        make_github_settings(tmp_path, snapshot, enable_write_actions=True)
+    token_file = write_private(
+        tmp_path / "secrets" / "github_pr_write_token",
+        b"unit-test-pr-write-token-not-real-1234",
+    )
+    settings = make_github_settings(
+        tmp_path,
+        snapshot,
+        enable_write_actions=True,
+        github_pr_write_token_file=token_file,
+    )
+    assert settings.enable_write_actions is True
+    assert settings.github_pr_write_token().startswith("unit-test-pr-write")
+
+
+def test_write_actions_stay_forbidden_for_authless_local(
+    tmp_path: Path,
+    snapshot: Path,
+):
+    with pytest.raises(ValidationError, match="authenticated"):
+        Settings(
+            auth_mode="authless_local",
+            api_host="127.0.0.1",
+            jn_snapshot_path=snapshot,
+            enable_write_actions=True,
+        )
 
 
 def test_expected_values_cannot_redirect_provider(tmp_path: Path, snapshot: Path):

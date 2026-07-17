@@ -291,6 +291,7 @@ def test_device_flow_authorizes_same_principal_for_mcp_and_rest(
         "project_context",
         "lookup_symbol",
         "check_status",
+        "open_pr",
     ]
     symbol = _rpc_result(
         _mcp_post(

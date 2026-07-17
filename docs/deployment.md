@@ -38,10 +38,14 @@ Create the secrets directory with mode 0700 and these mode-0600 files:
 - `github_collaborator_token`
 - `github_actions_read_token`
 - `oauth_jwt_signing_key`
+- `github_pr_write_token` (only when `ENABLE_WRITE_ACTIONS=true`)
 
 The collaborator token checks current access to the fixed JN Engine repository. The
 Actions token is separate and should have only Actions read, Contents read, and Metadata
-read for that repository. Generate a new signing key for each deployment; never reuse a
+read for that repository. The optional pull-request write token is a third fine-grained
+credential for only that repository with Contents write and Pull requests write; it is
+required only when `ENABLE_WRITE_ACTIONS=true` and must never be the collaborator or
+Actions credential. Generate a new signing key for each deployment; never reuse a
 sample value from documentation or tests.
 
 ## Build a Snapshot
