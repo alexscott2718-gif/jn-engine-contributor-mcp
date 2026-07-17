@@ -1,0 +1,9 @@
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: REPLACE_WITH_PUBLIC_HOSTNAME
+    service: http://gateway:8788
+  - hostname: REPLACE_WITH_GATEWAY_REPOSITORY_PUBLIC_HOSTNAME
+    service: http://gateway-repo:8788
+  - service: http_status:404

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools==83.0.0", "wheel==0.46.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jn-engine-contributor-mcp"
+version = "0.1.0"
+description = "Read-only REST and MCP gateway for JN Engine contributors"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "authlib==1.7.2",
+  "cryptography==49.0.0",
+  "fastapi==0.139.0",
+  "fastmcp==3.4.4",
+  "httpx==0.28.1",
+  "pydantic==2.13.4",
+  "python-dotenv==1.2.2",
+  "uvicorn[standard]==0.51.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest==9.1.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore:authlib.jose module is deprecated:authlib.deprecate.AuthlibDeprecationWarning",
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

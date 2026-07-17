@@ -1,0 +1,34 @@
+services:
+  gateway-repo:
+    build: .
+    profiles: ["gateway-repo"]
+    restart: unless-stopped
+    env_file: .env.gateway-repo
+    environment:
+      API_PORT: 8788
+      SERVICE_PROFILE: gateway_repository
+      MCP_PATH: /mcp
+      GATEWAY_REPO_SNAPSHOT_PATH: /data/jn-engine-contributor-mcp
+      GATEWAY_SECRETS_DIR: /secrets
+    ports:
+      - "127.0.0.1:${GATEWAY_REPO_PUBLISHED_API_PORT:-8789}:8788"
+    volumes:
+      - type: bind
+        source: ${GATEWAY_REPO_SNAPSHOT_HOST_PATH:?set a versioned immutable gateway-repository snapshot path}
+        target: /data/jn-engine-contributor-mcp
+        read_only: true
+      - type: bind
+        source: ${GATEWAY_REPO_SECRETS_HOST_PATH:?set the dedicated mode-0700 secrets path}
+        target: /secrets
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

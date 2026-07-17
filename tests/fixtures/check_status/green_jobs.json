@@ -1,0 +1,25 @@
+{
+  "total_count": 2,
+  "jobs": [
+    {
+      "id": 87256083908,
+      "run_id": 29384925309,
+      "name": "core",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-07-15T02:47:03Z",
+      "completed_at": "2026-07-15T02:48:16Z",
+      "html_url": "https://github.com/alexscott2718-gif/jn-engine/actions/runs/29384925309/job/87256083908"
+    },
+    {
+      "id": 87256083888,
+      "run_id": 29384925309,
+      "name": "assets",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-07-15T02:47:02Z",
+      "completed_at": "2026-07-15T02:48:19Z",
+      "html_url": "https://github.com/alexscott2718-gif/jn-engine/actions/runs/29384925309/job/87256083888"
+    }
+  ]
+}

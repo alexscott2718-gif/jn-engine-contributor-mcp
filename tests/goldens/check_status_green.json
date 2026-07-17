@@ -1,0 +1,38 @@
+{
+  "repository": "alexscott2718-gif/jn-engine",
+  "ref": "refs/pull/6/head",
+  "commit": "d98f2b75e683b2e8d75c7730a325047496cfda66",
+  "required_contexts": {
+    "core": {
+      "state": "success",
+      "run_id": 29384925309,
+      "run_url": "https://github.com/alexscott2718-gif/jn-engine/actions/runs/29384925309",
+      "started_at": "2026-07-15T02:47:03Z",
+      "completed_at": "2026-07-15T02:48:16Z"
+    },
+    "assets": {
+      "state": "success",
+      "run_id": 29384925309,
+      "run_url": "https://github.com/alexscott2718-gif/jn-engine/actions/runs/29384925309",
+      "started_at": "2026-07-15T02:47:02Z",
+      "completed_at": "2026-07-15T02:48:19Z"
+    }
+  },
+  "overall": "success",
+  "blocked_reason": null,
+  "artifacts": [
+    {
+      "name": "asset-visuals-1",
+      "size_bytes": 2739640,
+      "download_url": "https://api.github.com/repos/alexscott2718-gif/jn-engine/actions/artifacts/8331071956/zip",
+      "expired": false
+    },
+    {
+      "name": "core-visuals-1",
+      "size_bytes": 137421,
+      "download_url": "https://api.github.com/repos/alexscott2718-gif/jn-engine/actions/artifacts/8331071121/zip",
+      "expired": false
+    }
+  ],
+  "checked_at": "2026-07-15T04:00:00Z"
+}
