@@ -321,7 +321,8 @@ def create_mcp_server(
             "Propose a JN Engine change without a maintainer token: create a "
             "contrib/ branch from master with the provided UTF-8 files and open "
             "one pull request. Never pushes to master; requires an "
-            "idempotency_key so retries return the same pull request."
+            "idempotency_key so retries return the same pull request. Supply "
+            "expected_base_commit for snapshot-derived full-file replacements."
         ),
         output_schema=OpenPrOutput.model_json_schema(),
         annotations=PR_WRITE_ANNOTATIONS,
@@ -332,6 +333,10 @@ def create_mcp_server(
         files: list[dict],
         idempotency_key: Annotated[str, Field(min_length=8, max_length=64)],
         body: Annotated[str, Field(max_length=10_000)] = "",
+        expected_base_commit: Annotated[
+            str | None,
+            Field(min_length=40, max_length=40),
+        ] = None,
     ) -> OpenPrOutput:
         try:
             return open_pr_output(
@@ -342,6 +347,7 @@ def create_mcp_server(
                     files=files,
                     idempotency_key=idempotency_key,
                     caller_identity=_caller_identity(),
+                    expected_base_commit=expected_base_commit,
                 )
             )
         except CollaborationError as exc:

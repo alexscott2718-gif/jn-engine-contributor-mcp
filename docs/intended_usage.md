@@ -40,6 +40,12 @@ only the relevant files, perform the work in a local checkout, release ownership
 stopping, and call `check_status` before considering the change ready. Search again
 whenever fetch reports that the snapshot changed.
 
+For a capture-only blocker, use the documented `request_ground_truth` composition:
+fetch `docs/ground_truth_requests.md`, verify live `master` is the same commit, append
+one structured request, and submit only that file through `open_pr` with
+`expected_base_commit`. This is a workflow over existing tools, not an additional
+write capability.
+
 ### Source profile
 
 The source profile serves an immutable snapshot of this public repository through:

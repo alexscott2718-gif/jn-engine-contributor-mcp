@@ -196,6 +196,30 @@ def test_existing_branch_with_different_key_is_conflict(tmp_path: Path):
     assert _audit_records(audit_path)[-1]["outcome"] == "conflict"
 
 
+def test_expected_base_commit_blocks_stale_snapshot_before_mutation(tmp_path: Path):
+    state = _State()
+    service, audit_path = _service(state, tmp_path)
+    with pytest.raises(CollaborationError) as info:
+        service.open_pr(**_args(expected_base_commit="9" * 40))
+    assert info.value.code == "conflict"
+    assert not any(request.method == "POST" for request in state.requests)
+    record = _audit_records(audit_path)[-1]
+    assert record["outcome"] == "conflict"
+    assert record["args"]["expected_base_commit"] == "9" * 40
+
+
+def test_existing_idempotent_branch_replays_after_master_advances(tmp_path: Path):
+    state = _State(branch_exists=True, head_key=KEY, open_pr_exists=True)
+    service, _ = _service(state, tmp_path)
+    result = service.open_pr(**_args(expected_base_commit="9" * 40))
+    assert result.replayed is True
+    assert result.pr_number == 12
+    assert not any(
+        request.method == "POST" and "/git/" in request.url.path
+        for request in state.requests
+    )
+
+
 def test_duplicate_pr_creation_race_resolves_to_the_existing_pr(tmp_path: Path):
     state = _State(pr_create_conflict=True, open_pr_exists=True)
     service, _ = _service(state, tmp_path)
@@ -261,6 +285,23 @@ def test_missing_or_malformed_idempotency_key_is_bad_args(tmp_path: Path):
             service.open_pr(**_args(idempotency_key=key))
         assert info.value.code == "bad_args"
     assert state.requests == []
+
+
+@pytest.mark.parametrize(
+    "commit",
+    ["", "abc", "A" * 40, "g" * 40, "0" * 39, "0" * 41, 123],
+)
+def test_malformed_expected_base_commit_is_bad_args(
+    tmp_path: Path,
+    commit: object,
+):
+    state = _State()
+    service, audit_path = _service(state, tmp_path)
+    with pytest.raises(CollaborationError) as info:
+        service.open_pr(**_args(expected_base_commit=commit))
+    assert info.value.code == "bad_args"
+    assert state.requests == []
+    assert _audit_records(audit_path)[-1]["outcome"] == "bad_args"
 
 
 def test_file_and_size_bounds_are_enforced(tmp_path: Path):

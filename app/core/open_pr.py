@@ -38,6 +38,7 @@ MAX_PATH_CHARS = 300
 
 _BRANCH = re.compile(r"^contrib/[a-z0-9][a-z0-9._-]{0,80}$")
 _IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _IDEMPOTENCY_TRAILER = re.compile(r"^Idempotency-Key: ([A-Za-z0-9._-]{8,64})$", re.M)
 _FORBIDDEN_PATH_PREFIXES = (".git/", ".github/workflows/")
@@ -114,6 +115,14 @@ def _validate_idempotency_key(key: object) -> str:
             "dot, underscore, or hyphen"
         )
     return key
+
+
+def _validate_expected_base_commit(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or _COMMIT_SHA.fullmatch(value) is None:
+        raise bad_args("expected_base_commit must be a lowercase 40-character SHA")
+    return value
 
 
 def _validate_path(path: object) -> str:
@@ -355,6 +364,7 @@ class OpenPrService:
         files: object,
         idempotency_key: object,
         caller_identity: str,
+        expected_base_commit: object = None,
     ) -> OpenedPr:
         opened_at = _timestamp(self._clock())
         session: GitHubWriteSession | None = None
@@ -369,6 +379,9 @@ class OpenPrService:
             valid_body = _validate_body(body)
             valid_files = _validate_files(files)
             valid_key = _validate_idempotency_key(idempotency_key)
+            valid_expected_base = _validate_expected_base_commit(
+                expected_base_commit
+            )
             audit_files = [
                 {"path": item.path, "chars": len(item.content)}
                 for item in valid_files
@@ -389,6 +402,14 @@ class OpenPrService:
                 created_branch = False
                 replayed = True
             else:
+                if (
+                    valid_expected_base is not None
+                    and base_commit != valid_expected_base
+                ):
+                    raise conflict(
+                        "master advanced beyond expected_base_commit; refresh the "
+                        "snapshot and retry on a new contrib/ branch"
+                    )
                 head_commit = self._create_commit(
                     session,
                     base_commit=base_commit,
@@ -435,6 +456,11 @@ class OpenPrService:
                 "files": audit_files,
                 "idempotency_key": (
                     idempotency_key if isinstance(idempotency_key, str) else None
+                ),
+                "expected_base_commit": (
+                    expected_base_commit
+                    if isinstance(expected_base_commit, str)
+                    else None
                 ),
             },
             "base_commit": base_commit,

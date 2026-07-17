@@ -261,6 +261,34 @@ def test_task_writes_preserve_typed_errors_and_authenticated_owner(
     )
 
 
+def test_open_pr_forwards_expected_base_commit(mcp_server, open_pr_service):
+    expected = "9" * 40
+    open_pr_service.error = bad_args("test PR failure")
+    try:
+        with pytest.raises(ToolError):
+            _run(
+                _tools(mcp_server)["open_pr"],
+                {
+                    "branch": "contrib/ground-truth-test",
+                    "title": "Request ground truth",
+                    "files": [
+                        {
+                            "path": "docs/ground_truth_requests.md",
+                            "content": "request\n",
+                        }
+                    ],
+                    "idempotency_key": "ground-truth-test-001",
+                    "expected_base_commit": expected,
+                },
+            )
+    finally:
+        open_pr_service.error = None
+    assert open_pr_service.last_kwargs["expected_base_commit"] == expected
+    assert open_pr_service.last_kwargs["caller_identity"] == (
+        "local:unauthenticated"
+    )
+
+
 def test_search_then_fetch_has_matching_structured_and_json_content(mcp_server):
     tools = _tools(mcp_server)
     searched = _run(
