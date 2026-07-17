@@ -90,6 +90,7 @@ def device_settings(tmp_path: Path, signing_key_pem: bytes) -> Settings:
         mcp_enrollment_secret_file=enrollment_secret,
         github_actions_read_token_file=secrets_dir / "github_actions_read_token",
         audit_log_path=audit_dir / "tool_calls.ndjson",
+        task_claim_ledger_path=audit_dir / "task_claims.ndjson",
         oauth_allowed_client_redirect_uris=("http://127.0.0.1:*",),
     )
 

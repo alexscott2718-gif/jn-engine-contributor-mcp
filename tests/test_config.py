@@ -177,6 +177,27 @@ def test_audit_parent_must_be_private_and_durable(github_settings: Settings):
         Settings(**github_settings.model_dump())
 
 
+def test_claim_ledger_is_distinct_but_uses_the_durable_audit_directory(
+    github_settings: Settings,
+    tmp_path: Path,
+):
+    assert github_settings.task_claim_ledger_path.name == "task_claims.ndjson"
+    assert github_settings.task_claim_ledger_path.parent == (
+        github_settings.audit_log_path.parent
+    )
+
+    values = github_settings.model_dump()
+    values["task_claim_ledger_path"] = github_settings.audit_log_path
+    with pytest.raises(ValidationError, match="must be distinct"):
+        Settings(**values)
+
+    other = tmp_path / "other-audit"
+    other.mkdir(mode=0o700)
+    values["task_claim_ledger_path"] = other / "task_claims.ndjson"
+    with pytest.raises(ValidationError, match="AUDIT_LOG_PATH directory"):
+        Settings(**values)
+
+
 def test_mcp_path_rejects_dot_segments(tmp_path: Path, snapshot: Path):
     with pytest.raises(ValidationError, match="dot segments"):
         make_github_settings(tmp_path, snapshot, mcp_path="/mcp/../admin")

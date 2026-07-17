@@ -23,6 +23,7 @@ from app.core.task_index import TaskIndex, TaskRecord, TaskStatus
 MIN_CLAIM_MINUTES = 15
 MAX_CLAIM_MINUTES = 1_440
 DEFAULT_CLAIM_MINUTES = 120
+CLAIM_LEDGER_SCHEMA_VERSION = 1
 
 _IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 _CLAIM_ID = re.compile(r"^[A-Za-z0-9_-]{24}$")
@@ -139,6 +140,8 @@ def _ledger_claims(
         tool = record.get("tool")
         if tool not in {"claim_task", "release_task"}:
             continue
+        if record.get("schema_version") != CLAIM_LEDGER_SCHEMA_VERSION:
+            raise AuditUnavailableError("claim ledger schema version is unsupported")
         outcome = record.get("outcome")
         if tool == "claim_task" and outcome == "claimed":
             args = record.get("args")
@@ -300,6 +303,7 @@ class TaskClaimService:
                 failure = exc
 
             record = {
+                "schema_version": CLAIM_LEDGER_SCHEMA_VERSION,
                 "timestamp": timestamp,
                 "caller_identity": valid_owner or _safe_arg(caller_identity, 160),
                 "tool": "claim_task",
@@ -383,6 +387,7 @@ class TaskClaimService:
                 failure = exc
 
             record = {
+                "schema_version": CLAIM_LEDGER_SCHEMA_VERSION,
                 "timestamp": timestamp,
                 "caller_identity": valid_owner or _safe_arg(caller_identity, 160),
                 "tool": "release_task",

@@ -102,6 +102,8 @@ Production GitHub OAuth configuration and secret-file permissions are documented
 - OAuth state is encrypted before being stored in a mode-0700 file-tree directory.
 - Secret values are accepted through mode-0600 files, not command-line arguments or
   URLs.
+- Expiring task ownership uses a dedicated versioned mode-0600 ledger, separate from
+  the rotatable status/PR audit log.
 - Write actions require the authenticated engine profile and a dedicated PR token;
   shell actions always fail startup when enabled.
 - The container runs non-root with a read-only root filesystem, no capabilities, no

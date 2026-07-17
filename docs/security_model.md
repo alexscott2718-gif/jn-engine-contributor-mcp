@@ -34,10 +34,12 @@ The implementation and tests enforce:
   outbound GitHub credentials are never record fields; an unavailable audit sink
   fails the call.
 - Claim ownership is derived only from the authenticated principal. Claim decisions
-  and their audit event are one locked append to the same mode-0600 ledger; expiry is
-  15 minutes through 24 hours, idempotency replays the same claim, competing callers
-  conflict, and release requires both ownership and the opaque claim ID. Malformed,
-  partial, oversized, linked, or incorrectly permissioned ledgers fail closed.
+  and their audit event are one locked append to a dedicated mode-0600 versioned
+  ledger, distinct from the rotatable status/PR audit log; expiry is 15 minutes
+  through 24 hours, idempotency replays the same claim, competing callers conflict,
+  and release requires both ownership and the opaque claim ID. Malformed, partial,
+  oversized, linked, unsupported-version, or incorrectly permissioned ledgers fail
+  closed and use the documented drain-and-archive recovery procedure.
 - open_pr validates every input before any network use: a contrib/ branch allowlist,
   bounded printable title/body, bounded file counts and sizes, and repository-relative
   paths with no traversal, no .git/, and no workflow writes. Idempotency keys make

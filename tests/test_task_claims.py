@@ -54,7 +54,7 @@ def _service(
     clock=lambda: NOW,
     claim_id: str = CLAIM_ID,
 ) -> tuple[TaskClaimService, Path]:
-    audit_path = tmp_path / "tool_calls.ndjson"
+    audit_path = tmp_path / "task_claims.ndjson"
     return (
         TaskClaimService(
             _Tasks(),
@@ -95,6 +95,7 @@ def test_claim_is_owned_expiring_idempotent_and_fsynced_to_audit(tmp_path: Path)
     assert audit_path.stat().st_mode & 0o777 == 0o600
     records = _records(audit_path)
     assert [record["outcome"] for record in records] == ["claimed", "replayed"]
+    assert {record["schema_version"] for record in records} == {1}
     assert records[0]["caller_identity"] == "github:alice"
     assert records[0]["snapshot_commit"] == COMMIT
 
@@ -130,6 +131,28 @@ def test_expiry_allows_a_new_owner_without_a_release(tmp_path: Path):
     )
     assert claimed.owner == "github:bob"
     assert claimed.replayed is False
+
+
+def test_rotating_general_audit_does_not_change_dedicated_claim_state(
+    tmp_path: Path,
+):
+    service, ledger_path = _service(tmp_path)
+    claimed = _claim(service)
+    general_path = tmp_path / "tool_calls.ndjson"
+    AuditLog(general_path).append(
+        {"tool": "check_status", "outcome": "success"}
+    )
+    general_path.rename(tmp_path / "tool_calls.archived.ndjson")
+    AuditLog(general_path).append({"tool": "open_pr", "outcome": "bad_args"})
+
+    replay = _claim(service)
+    assert replay.claim_id == claimed.claim_id
+    assert replay.replayed is True
+    assert [record["tool"] for record in _records(ledger_path)] == [
+        "claim_task",
+        "claim_task",
+    ]
+    assert [record["tool"] for record in _records(general_path)] == ["open_pr"]
 
 
 def test_release_requires_owner_and_claim_id_then_replays_safely(tmp_path: Path):
@@ -201,6 +224,11 @@ def test_malformed_or_unsafe_ledger_fails_closed(tmp_path: Path):
         _claim(service)
     assert raised.value.code == "upstream_unavailable"
 
+    audit_path.chmod(0o644)
+    with pytest.raises(CollaborationError) as raised:
+        _claim(service)
+    assert raised.value.code == "upstream_unavailable"
+
 
 def test_partial_or_linked_ledger_fails_closed(tmp_path: Path):
     service, audit_path = _service(tmp_path)
@@ -219,10 +247,25 @@ def test_partial_or_linked_ledger_fails_closed(tmp_path: Path):
         _claim(service)
     assert raised.value.code == "upstream_unavailable"
 
-    audit_path.chmod(0o644)
+
+def test_future_ledger_schema_fails_closed_with_archive_intact(tmp_path: Path):
+    service, ledger_path = _service(tmp_path)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "tool": "claim_task",
+                "outcome": "claimed",
+            }
+        )
+        + "\n"
+    )
+    ledger_path.chmod(0o600)
+    before = ledger_path.read_bytes()
     with pytest.raises(CollaborationError) as raised:
         _claim(service)
     assert raised.value.code == "upstream_unavailable"
+    assert ledger_path.read_bytes() == before
 
 
 def test_concurrent_callers_cannot_both_acquire_one_task(tmp_path: Path):

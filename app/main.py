@@ -108,12 +108,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             AuditLog(settings.audit_log_path),
         )
         if settings.enable_write_actions:
-            audit = AuditLog(settings.audit_log_path)
             pr_writes = OpenPrService(
                 GitHubWriteClient(settings.github_pr_write_token),
-                audit,
+                AuditLog(settings.audit_log_path),
             )
-            task_claims = TaskClaimService(data.tasks, audit)
+            task_claims = TaskClaimService(
+                data.tasks,
+                AuditLog(settings.task_claim_ledger_path),
+            )
         else:
             pr_writes = WriteDisabledOpenPrService()
             task_claims = WriteDisabledTaskClaimService()

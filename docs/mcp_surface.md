@@ -66,13 +66,17 @@ Only the authenticated owner can release an active claim. The claim ID prevents 
 delayed release retry from relinquishing a newer claim; replay after release returns
 `released: false` without changing state.
 
-Claim and release decisions use the mode-0600 fsynced audit NDJSON itself as their
-event ledger. Reading active ownership and appending the decision happen under one
-exclusive file lock, so state cannot diverge from its audit event. Unsafe modes,
-links, malformed or partial records, oversized ledgers, and failed durable writes all
-fail closed with no successful tool result. Records contain task ID, caller identity,
-claim ID, snapshot commit, timestamps, expiry, and outcome—never a bearer or GitHub
-credential.
+Claim and release decisions use a dedicated mode-0600 fsynced NDJSON event ledger at
+`TASK_CLAIM_LEDGER_PATH`, separate from the rotatable `AUDIT_LOG_PATH` used by
+`check_status` and `open_pr`. Reading active ownership and appending the decision
+happen under one exclusive file lock, so state cannot diverge from its audit event and
+claim traffic does not serialize unrelated tool audit writes. Unsafe modes, links,
+malformed or partial records, unsupported schema versions, oversized ledgers, and
+failed durable writes all fail closed with no successful tool result. Versioned
+records contain task ID, caller identity, claim ID, snapshot commit, timestamps,
+expiry, and outcome—never a bearer or GitHub credential. The deployment runbook
+defines a 24-hour drain-and-archive compaction and poison-record recovery procedure;
+the claim ledger must never be truncated or rotated while writes are enabled.
 
 ## Live `open_pr` Contract
 

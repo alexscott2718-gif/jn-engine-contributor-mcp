@@ -78,7 +78,11 @@ class AuditLog:
         self,
         decide: Callable[[tuple[Mapping[str, Any], ...]], AuditDecision[T]],
     ) -> T:
-        """Read the bounded ledger and append one decision under one fsynced lock."""
+        """Read and append under one fsynced lock for this path.
+
+        Every append to the same file serializes behind this lock. Stateful users
+        should therefore use a dedicated ledger path instead of the general audit log.
+        """
         flags = (
             os.O_APPEND
             | os.O_CREAT
