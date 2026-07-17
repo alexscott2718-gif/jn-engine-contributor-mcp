@@ -1,4 +1,4 @@
-"""Exact seven-tool MCP contracts over the real immutable snapshot."""
+"""Exact nine-tool MCP contracts over the real immutable snapshot."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from app.core.path_safety import encode_content_id
 from app.main import build_data_plane
 from app.mcp.server import create_mcp_server
 from app.models.content import FetchOutput, SearchToolOutput
+from app.models.claims import ClaimTaskOutput, ReleaseTaskOutput
 from app.models.projects import ProjectContextOutput
 from app.models.symbols import SymbolLookupOutput
 from app.models.pr import OpenPrOutput
@@ -40,6 +41,8 @@ EXPECTED_TOOLS = [
     "search",
     "fetch",
     "list_tasks",
+    "claim_task",
+    "release_task",
     "project_context",
     "lookup_symbol",
     "check_status",
@@ -69,6 +72,23 @@ class _UnusedOpenPrService:
         raise AssertionError("PR write service is not used by immutable-tool tests")
 
 
+class _UnusedTaskClaimService:
+    error = None
+    last_kwargs = None
+
+    def claim_task(self, **_kwargs):
+        self.last_kwargs = _kwargs
+        if self.error is not None:
+            raise self.error
+        raise AssertionError("task claim service is not used by immutable-tool tests")
+
+    def release_task(self, **_kwargs):
+        self.last_kwargs = _kwargs
+        if self.error is not None:
+            raise self.error
+        raise AssertionError("task claim service is not used by immutable-tool tests")
+
+
 @pytest.fixture(scope="module")
 def status_service():
     return _UnusedStatusService()
@@ -80,7 +100,12 @@ def open_pr_service():
 
 
 @pytest.fixture(scope="module")
-def mcp_server(status_service, open_pr_service):
+def task_claim_service():
+    return _UnusedTaskClaimService()
+
+
+@pytest.fixture(scope="module")
+def mcp_server(status_service, open_pr_service, task_claim_service):
     settings = Settings(
         auth_mode="authless_local",
         api_host="127.0.0.1",
@@ -97,6 +122,7 @@ def mcp_server(status_service, open_pr_service):
         symbols=data.symbols,
         statuses=status_service,
         pr_writes=open_pr_service,
+        task_claims=task_claim_service,
     )
 
 
@@ -143,13 +169,15 @@ def _run(tool, arguments):
     return asyncio.run(tool.run(arguments))
 
 
-def test_exact_seven_tools_descriptions_schemas_and_annotations(mcp_server):
+def test_exact_nine_tools_descriptions_schemas_and_annotations(mcp_server):
     tools = _tools(mcp_server)
     assert list(tools) == EXPECTED_TOOLS
     schemas = {
         "search": SearchToolOutput.model_json_schema(),
         "fetch": FetchOutput.model_json_schema(),
         "list_tasks": TaskListOutput.model_json_schema(),
+        "claim_task": ClaimTaskOutput.model_json_schema(),
+        "release_task": ReleaseTaskOutput.model_json_schema(),
         "project_context": ProjectContextOutput.model_json_schema(),
         "lookup_symbol": SymbolLookupOutput.model_json_schema(),
         "check_status": CheckStatusOutput.model_json_schema(),
@@ -163,7 +191,9 @@ def test_exact_seven_tools_descriptions_schemas_and_annotations(mcp_server):
         )
         expected_output_schema.pop("$defs", None)
         assert tool.output_schema == expected_output_schema
-        assert tool.annotations.readOnlyHint is (name != "open_pr")
+        assert tool.annotations.readOnlyHint is (
+            name not in {"claim_task", "release_task", "open_pr"}
+        )
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.idempotentHint is True
         assert tool.annotations.openWorldHint is (
@@ -192,6 +222,43 @@ def test_check_status_preserves_typed_sanitized_tool_error(
         "detail": "provide exactly one of pr or branch",
     }
     assert status_service.last_kwargs["caller_identity"] == "local:unauthenticated"
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments"),
+    [
+        (
+            "claim_task",
+            {
+                "task_id": "handoff:missing",
+                "idempotency_key": "session-test-001",
+            },
+        ),
+        (
+            "release_task",
+            {"task_id": "handoff:missing", "claim_id": "A" * 24},
+        ),
+    ],
+)
+def test_task_writes_preserve_typed_errors_and_authenticated_owner(
+    mcp_server,
+    task_claim_service,
+    tool_name,
+    arguments,
+):
+    task_claim_service.error = bad_args("test task write failure")
+    try:
+        with pytest.raises(ToolError) as raised:
+            _run(_tools(mcp_server)[tool_name], arguments)
+    finally:
+        task_claim_service.error = None
+    assert json.loads(str(raised.value)) == {
+        "code": "bad_args",
+        "detail": "test task write failure",
+    }
+    assert task_claim_service.last_kwargs["caller_identity"] == (
+        "local:unauthenticated"
+    )
 
 
 def test_search_then_fetch_has_matching_structured_and_json_content(mcp_server):
@@ -226,7 +293,7 @@ def test_search_then_fetch_has_matching_structured_and_json_content(mcp_server):
     }
 
 
-def test_official_mcp_sdk_lists_six_tools_and_searches_then_fetches(live_mcp_url):
+def test_official_mcp_sdk_lists_nine_tools_and_searches_then_fetches(live_mcp_url):
     async def scenario():
         async with streamable_http_client(live_mcp_url) as (
             read_stream,

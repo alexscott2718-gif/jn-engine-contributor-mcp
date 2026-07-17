@@ -30,6 +30,8 @@ settings include:
 - `JN_SNAPSHOT_HOST_PATH`
 - `GATEWAY_SECRETS_HOST_PATH`
 - `GATEWAY_AUDIT_HOST_PATH`
+- `AUDIT_LOG_PATH=/audit/tool_calls.ndjson`
+- `TASK_CLAIM_LEDGER_PATH=/audit/task_claims.ndjson`
 - a digest-pinned `CLOUDFLARED_IMAGE` if using the optional tunnel profile
 
 Create the secrets directory with mode 0700 and these mode-0600 files:
@@ -47,6 +49,12 @@ credential for only that repository with Contents write and Pull requests write;
 required only when `ENABLE_WRITE_ACTIONS=true` and must never be the collaborator or
 Actions credential. Generate a new signing key for each deployment; never reuse a
 sample value from documentation or tests.
+
+`ENABLE_WRITE_ACTIONS=true` also enables `claim_task` and `release_task` only on the
+authenticated engine profile. Those ownership tools never receive or use the GitHub
+write credential; their only mutable target is the dedicated durable mode-0600 claim
+ledger. The claim ledger must be a different file from the general tool audit log in
+the same mode-0700 durable directory.
 
 ## Build a Snapshot
 
@@ -103,7 +111,35 @@ are operational data and should be documented privately.
   `scripts/check_github_collaborator_token.py` before deployment.
 - Removing a GitHub collaborator revokes new checks immediately and cached positive
   decisions within the configured maximum TTL.
-- Preserve and rotate the engine profile's audit log outside the container.
+- Preserve and rotate the engine profile's general `tool_calls.ndjson` audit log
+  outside the container, recreating the active file as UID/GID 10001 mode 0600.
+
+### Claim-ledger compaction and recovery
+
+`task_claims.ndjson` is versioned state as well as audit evidence. Never truncate,
+replace, or rotate it while `ENABLE_WRITE_ACTIONS=true`: doing so would discard active
+ownership. Monitor its size and schedule maintenance before 48 MiB; claim/release
+fails closed at the hard 64 MiB bound.
+
+Compaction deliberately uses the maximum 24-hour claim TTL instead of rewriting
+history or trying to copy live state:
+
+1. Set `ENABLE_WRITE_ACTIONS=false` and recreate the authenticated engine service.
+   This temporarily disables all three write tools. Record the disable time.
+2. Wait a full 24 hours so every claim accepted before the disable time has expired.
+3. Stop the engine service. Atomically rename `task_claims.ndjson` to a dated archive
+   in the same durable directory; never edit or delete that evidence as part of
+   compaction.
+4. Create an empty `task_claims.ndjson` owned by UID/GID 10001 with mode 0600, then
+   restore `ENABLE_WRITE_ACTIONS=true` and recreate only the authenticated engine
+   service.
+5. Verify claim, replay, guarded release, and both ledger file permissions before
+   ending maintenance.
+
+Use the same procedure when an unsupported `schema_version`, malformed/partial
+record, or unsafe ledger mode makes claim tools fail closed. Keep the poisoned file as
+the dated forensic archive. Do not hand-edit append-only evidence. A schema upgrade
+must deploy a reader for the new version before re-enabling writes.
 
 Changing authentication mode is an explicit maintenance action. Device mode requires
 its own RSA signing key, enrollment secret, and redirect allowlist. It must never be an

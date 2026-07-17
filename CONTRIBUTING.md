@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions to the read-only gateway, snapshot tooling, tests, and documentation are
+Contributions to the bounded gateway, snapshot tooling, tests, and documentation are
 welcome.
 
 1. Fork or clone the repository using a GitHub identity you are comfortable making

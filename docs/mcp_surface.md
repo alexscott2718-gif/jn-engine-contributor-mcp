@@ -1,19 +1,22 @@
 # MCP Surface
 
-The production Streamable HTTP server registers exactly these seven tools:
+The production Streamable HTTP server registers exactly these nine tools:
 
 1. search
 2. fetch
 3. list_tasks
-4. project_context
-5. lookup_symbol
-6. check_status
-7. open_pr
+4. claim_task
+5. release_task
+6. project_context
+7. lookup_symbol
+8. check_status
+9. open_pr
 
 Six tools are read-only; every tool is non-destructive, idempotent, and bounded. The
 five snapshot tools are closed-world and share the REST core. `check_status` is an
-open-world read against only the fixed JN Engine GitHub repository. `open_pr` is the
-single write tool: it proposes work as a pull request and can never push to protected
+open-world read against only the fixed JN Engine GitHub repository. `claim_task` and
+`release_task` modify only the durable local ownership ledger. `open_pr` is the only
+GitHub write tool: it proposes work as a pull request and can never push to protected
 `master`. No resources or prompts are registered.
 
 | Tool | Inputs |
@@ -21,6 +24,8 @@ single write tool: it proposes work as a pull request and can never push to prot
 | `search` | `query`, `scope=all|source|docs|re|tasks`, `limit=1..50` |
 | `fetch` | commit-bound `id` returned by search |
 | `list_tasks` | `status`, `source`, `limit=1..100` |
+| `claim_task` | exact committed `task_id`, `idempotency_key`; `duration_minutes=15..1440` (default 120) |
+| `release_task` | exact `task_id` and the `claim_id` returned by `claim_task` |
 | `project_context` | `max_chars=1000..20000` |
 | `lookup_symbol` | one or more of `name`, `address`, `class_name`, `fourcc`; `limit=1..50` |
 | `check_status` | exactly one of `pr` or `branch`; optional full `commit` SHA |
@@ -34,9 +39,10 @@ caller to search again.
 
 `check_status` reads GitHub Actions state through a separate least-privilege credential
 that has no repository write permission. Callers cannot select another repository.
-`check_status` and `open_pr` have `openWorldHint: true`; the five snapshot tools have
-`openWorldHint: false`. Every tool except `open_pr` has `readOnlyHint: true`; all
-seven retain `destructiveHint: false` and `idempotentHint: true`.
+`check_status` and `open_pr` have `openWorldHint: true`; the five snapshot tools and
+two local ownership tools have `openWorldHint: false`. `claim_task`, `release_task`,
+and `open_pr` have `readOnlyHint: false`; all nine retain `destructiveHint: false`
+and `idempotentHint: true`.
 
 `check_status` always reports both required contexts. An unreported context has state
 `missing`, makes `overall` equal `blocked`, and names the absent context in
@@ -45,6 +51,32 @@ JSON tool errors with one of `credential_unavailable`, `upstream_unavailable`,
 `bad_args`, or `not_found`. Every invocation appends a durable audit record containing
 the caller identity, sanitized arguments, resolved commit, outcome, and ordered GitHub
 status trail. Bearer and GitHub token values are never serialized.
+
+## Task Ownership Contract
+
+`claim_task` accepts only an exact ID from the immutable committed task index and
+binds ownership to the authenticated caller; callers cannot provide an owner name.
+Open and blocked tasks may be claimed for 15 minutes through 24 hours. A matching
+owner and idempotency key replays the existing claim, while a competing owner or a
+different key receives a typed `conflict` containing the current owner and expiry.
+Expired claims stop blocking automatically.
+
+`release_task` requires the opaque 24-character `claim_id` returned by `claim_task`.
+Only the authenticated owner can release an active claim. The claim ID prevents a
+delayed release retry from relinquishing a newer claim; replay after release returns
+`released: false` without changing state.
+
+Claim and release decisions use a dedicated mode-0600 fsynced NDJSON event ledger at
+`TASK_CLAIM_LEDGER_PATH`, separate from the rotatable `AUDIT_LOG_PATH` used by
+`check_status` and `open_pr`. Reading active ownership and appending the decision
+happen under one exclusive file lock, so state cannot diverge from its audit event and
+claim traffic does not serialize unrelated tool audit writes. Unsafe modes, links,
+malformed or partial records, unsupported schema versions, oversized ledgers, and
+failed durable writes all fail closed with no successful tool result. Versioned
+records contain task ID, caller identity, claim ID, snapshot commit, timestamps,
+expiry, and outcome—never a bearer or GitHub credential. The deployment runbook
+defines a 24-hour drain-and-archive compaction and poison-record recovery procedure;
+the claim ledger must never be truncated or rotated while writes are enabled.
 
 ## Live `open_pr` Contract
 
@@ -69,7 +101,8 @@ exactly once — after a mutation may have been applied, any transport error or
 unexpected status fails the whole call closed with no retry and no partial result.
 
 When the deployment has not set `ENABLE_WRITE_ACTIONS=true` with the dedicated
-credential mounted, the registered tool fails closed with `write_disabled`.
+credential mounted, all three registered write tools fail closed with
+`write_disabled`.
 Failures are short JSON tool errors with one of `credential_unavailable`,
 `upstream_unavailable`, `bad_args`, `not_found`, `conflict`, or `write_disabled`.
 Every invocation appends a durable audit record containing the caller identity,

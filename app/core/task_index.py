@@ -242,6 +242,7 @@ class TaskIndex:
             )
         )
         self._tasks = tuple(tasks)
+        self._tasks_by_id = {task.id: task for task in self._tasks}
 
     @property
     def tasks(self) -> tuple[TaskRecord, ...]:
@@ -618,3 +619,7 @@ class TaskIndex:
             count=len(tasks),
             tasks=tasks,
         )
+
+    def get_task(self, task_id: str) -> TaskRecord | None:
+        """Return one exact committed task ID without accepting fuzzy aliases."""
+        return self._tasks_by_id.get(task_id)

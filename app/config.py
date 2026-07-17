@@ -153,6 +153,22 @@ def _validate_private_directory(path: Path) -> None:
         raise ValueError("GATEWAY_SECRETS_DIR must be readable and writable")
 
 
+def _validate_private_data_path(path: Path, *, label: str) -> None:
+    if not path.is_absolute():
+        raise ValueError(f"{label} must be absolute")
+    parent = path.parent
+    try:
+        metadata = parent.lstat()
+    except OSError as exc:
+        raise ValueError(f"{label} parent is missing or inaccessible") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"{label} parent must be a real directory")
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ValueError(f"{label} parent must have mode 0700")
+    if not os.access(parent, os.R_OK | os.W_OK | os.X_OK):
+        raise ValueError(f"{label} parent must be readable and writable")
+
+
 def read_private_secret_bytes(
     path: Path,
     *,
@@ -237,6 +253,7 @@ class Settings(BaseModel):
     )
     github_pr_write_token_file: Path = Path("/secrets/github_pr_write_token")
     audit_log_path: Path = Path("/audit/tool_calls.ndjson")
+    task_claim_ledger_path: Path = Path("/audit/task_claims.ndjson")
     oauth_jwt_signing_key_file: Path = Path("/secrets/oauth_jwt_signing_key")
     oauth_allowed_client_redirect_uris: tuple[str, ...] = ()
     github_collab_cache_ttl_seconds: int = 300
@@ -356,24 +373,18 @@ class Settings(BaseModel):
             )
 
         if self.service_profile == "engine":
-            if not self.audit_log_path.is_absolute():
-                raise ValueError("AUDIT_LOG_PATH must be absolute")
-            audit_parent = self.audit_log_path.parent
-            try:
-                audit_metadata = audit_parent.lstat()
-            except OSError as exc:
+            _validate_private_data_path(self.audit_log_path, label="AUDIT_LOG_PATH")
+            _validate_private_data_path(
+                self.task_claim_ledger_path,
+                label="TASK_CLAIM_LEDGER_PATH",
+            )
+            if self.task_claim_ledger_path == self.audit_log_path:
                 raise ValueError(
-                    "AUDIT_LOG_PATH parent is missing or inaccessible"
-                ) from exc
-            if stat.S_ISLNK(audit_metadata.st_mode) or not stat.S_ISDIR(
-                audit_metadata.st_mode
-            ):
-                raise ValueError("AUDIT_LOG_PATH parent must be a real directory")
-            if stat.S_IMODE(audit_metadata.st_mode) != 0o700:
-                raise ValueError("AUDIT_LOG_PATH parent must have mode 0700")
-            if not os.access(audit_parent, os.R_OK | os.W_OK | os.X_OK):
+                    "TASK_CLAIM_LEDGER_PATH must be distinct from AUDIT_LOG_PATH"
+                )
+            if self.task_claim_ledger_path.parent != self.audit_log_path.parent:
                 raise ValueError(
-                    "AUDIT_LOG_PATH parent must be readable and writable"
+                    "TASK_CLAIM_LEDGER_PATH must use the AUDIT_LOG_PATH directory"
                 )
 
         secret_paths = [self.oauth_jwt_signing_key_file]
@@ -550,6 +561,12 @@ class Settings(BaseModel):
                 ),
                 audit_log_path=Path(
                     value("AUDIT_LOG_PATH", "/audit/tool_calls.ndjson")
+                ),
+                task_claim_ledger_path=Path(
+                    value(
+                        "TASK_CLAIM_LEDGER_PATH",
+                        "/audit/task_claims.ndjson",
+                    )
                 ),
                 oauth_jwt_signing_key_file=Path(
                     value(

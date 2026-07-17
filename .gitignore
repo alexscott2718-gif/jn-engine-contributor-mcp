@@ -2,6 +2,7 @@
 .env.gateway-repo
 .venv/
 .local/
+.ci/
 __pycache__/
 *.py[cod]
 .pytest_cache/

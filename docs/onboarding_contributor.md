@@ -22,7 +22,7 @@ deployment allowlist exactly; only loopback callbacks may use a wildcard port.
 3. In Settings, then Apps, create a custom app with
    `https://mcp.example.org/mcp` as its endpoint.
 4. Choose OAuth, scan the tools, and complete GitHub authorization.
-5. Select the app from the chat tools menu and verify that all six tools are available.
+5. Select the app from the chat tools menu and verify that all nine tools are available.
 
 The ChatGPT app uses the same GitHub OAuth and fail-closed repository collaborator
 check as Claude. No shared gateway credential is distributed to either client.
@@ -33,15 +33,18 @@ than automatically applying server-side changes. See OpenAI's current
 
 ## Live Tool Surface
 
-After connection, `tools/list` contains these six live tools:
+After connection, `tools/list` contains these nine live tools:
 
 ~~~text
 search
 fetch
 list_tasks
+claim_task
+release_task
 project_context
 lookup_symbol
 check_status
+open_pr
 ~~~
 
 `check_status` accepts exactly one of `pr` or `branch`, plus an optional full commit
@@ -50,8 +53,8 @@ JN Engine repository. Missing contexts block the result; the tool never treats
 missing status as success. Every invocation writes a durable audit record without
 serializing the inbound bearer or outbound GitHub token.
 
-The six live tools and the five protected REST routes are read-only and use the same
-contributor principal. Advanced clients may reuse their gateway bearer in an
+The six read tools, three audited write tools, and five protected REST routes use the
+same contributor principal. Advanced clients may reuse their gateway bearer in an
 `Authorization: Bearer` header for REST; never put a bearer in a URL or send it to
 another person. The public `/health` response reports the active snapshot commit,
 and search/fetch/symbol metadata includes commit-pinned repository URLs.

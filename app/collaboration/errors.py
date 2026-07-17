@@ -34,7 +34,7 @@ def credential_unavailable() -> CollaborationError:
 def upstream_unavailable() -> CollaborationError:
     return CollaborationError(
         "upstream_unavailable",
-        "GitHub status data is temporarily unavailable",
+        "the collaboration service is temporarily unavailable",
     )
 
 
@@ -52,7 +52,14 @@ def not_found() -> CollaborationError:
 def write_disabled() -> CollaborationError:
     return CollaborationError(
         "write_disabled",
-        "pull-request writes are disabled on this deployment",
+        "write actions are disabled on this deployment",
+    )
+
+
+def task_not_found() -> CollaborationError:
+    return CollaborationError(
+        "not_found",
+        "the requested committed task was not found",
     )
 
 

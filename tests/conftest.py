@@ -89,6 +89,7 @@ def make_github_settings(
         "github_collaborator_token_file": collaborator_token,
         "github_actions_read_token_file": actions_read_token,
         "audit_log_path": audit_dir / "tool_calls.ndjson",
+        "task_claim_ledger_path": audit_dir / "task_claims.ndjson",
         "oauth_jwt_signing_key_file": jwt_key,
         "oauth_allowed_client_redirect_uris": ("http://127.0.0.1:*",),
     }

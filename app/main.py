@@ -1,4 +1,4 @@
-"""Import-safe assembly for the read-only REST and MCP gateway."""
+"""Import-safe assembly for the bounded REST and MCP gateway."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from app.core.check_status import (
     CredentialUnavailableStatusService,
 )
 from app.core.open_pr import OpenPrService, WriteDisabledOpenPrService
+from app.core.task_claims import TaskClaimService, WriteDisabledTaskClaimService
 from app.core.content_search import ContentSearch
 from app.core.project_context import ProjectContextAssembler
 from app.core.snapshot import Snapshot, validate_snapshot
@@ -96,6 +97,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         pr_writes: OpenPrService | WriteDisabledOpenPrService = (
             WriteDisabledOpenPrService()
         )
+        task_claims: TaskClaimService | WriteDisabledTaskClaimService = (
+            WriteDisabledTaskClaimService()
+        )
     else:
         assert provider is not None
         require_contributor = build_rest_principal_dependency(provider)
@@ -108,8 +112,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 GitHubWriteClient(settings.github_pr_write_token),
                 AuditLog(settings.audit_log_path),
             )
+            task_claims = TaskClaimService(
+                data.tasks,
+                AuditLog(settings.task_claim_ledger_path),
+            )
         else:
             pr_writes = WriteDisabledOpenPrService()
+            task_claims = WriteDisabledTaskClaimService()
 
     mcp_server = create_mcp_server(
         settings,
@@ -120,6 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         symbols=data.symbols,
         statuses=status,
         pr_writes=pr_writes,
+        task_claims=task_claims,
     )
     mcp_http_app = mcp_server.http_app(
         path=settings.mcp_path,
@@ -134,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 yield
         finally:
             status.close()
+            pr_writes.close()
             if authorizer is not None:
                 await authorizer.aclose()
 
