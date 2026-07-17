@@ -29,7 +29,7 @@ GitHub write tool: it proposes work as a pull request and can never push to prot
 | `project_context` | `max_chars=1000..20000` |
 | `lookup_symbol` | one or more of `name`, `address`, `class_name`, `fourcc`; `limit=1..50` |
 | `check_status` | exactly one of `pr` or `branch`; optional full `commit` SHA |
-| `open_pr` | `branch` (contrib/ allowlist), `title`, `files` (path+content), `idempotency_key`; optional `body` |
+| `open_pr` | `branch` (contrib/ allowlist), `title`, `files` (path+content), `idempotency_key`; optional `body`, `expected_base_commit` |
 
 Search returns only `id`, `title`, and a commit-pinned URL. Fetch returns bounded text
 and exact snapshot metadata. A stale fetch ID raises a tool error instructing the
@@ -99,6 +99,23 @@ returns the same pull request with `replayed: true` and creates nothing new; a
 branch that exists with a different key is a `conflict`. Mutating requests are sent
 exactly once — after a mutation may have been applied, any transport error or
 unexpected status fails the whole call closed with no retry and no partial result.
+
+For full-file content derived from the immutable snapshot, callers may provide the
+snapshot SHA as `expected_base_commit`. A new branch fails with `conflict` before any
+mutation if live `master` advanced. An already-created branch carrying the same
+idempotency key still replays successfully, so a retry cannot be broken by later
+movement of `master`.
+
+## Ground-truth request composition
+
+`request_ground_truth` is a documented composition, not a tenth tool or another
+credential path. The client fetches `docs/ground_truth_requests.md`, verifies that
+`check_status(branch="master")` resolves to the fetched snapshot commit, appends one
+schema-valid request, and calls `open_pr` with only that file plus the same commit as
+`expected_base_commit`. The fixed engine document defines the allowed capture-only
+targets, append schema, idempotency-key format, and evidence/privacy rules. A stale
+snapshot or concurrent master update fails before mutation; the client must refresh
+and retry on a new branch. Human review and protected checks remain authoritative.
 
 When the deployment has not set `ENABLE_WRITE_ACTIONS=true` with the dedicated
 credential mounted, all three registered write tools fail closed with

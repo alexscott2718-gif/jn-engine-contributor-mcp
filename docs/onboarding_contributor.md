@@ -53,6 +53,11 @@ JN Engine repository. Missing contexts block the result; the tool never treats
 missing status as success. Every invocation writes a durable audit record without
 serializing the inbound bearer or outbound GitHub token.
 
+Capture-only questions use the repository's `request_ground_truth` workflow: fetch
+the fixed request document, verify its snapshot commit against live `master`, append
+one structured block, and propose it through `open_pr` with the snapshot SHA as
+`expected_base_commit`. No tenth tool or separate credential is involved.
+
 The six read tools, three audited write tools, and five protected REST routes use the
 same contributor principal. Advanced clients may reuse their gateway bearer in an
 `Authorization: Bearer` header for REST; never put a bearer in a URL or send it to

@@ -44,7 +44,13 @@ The implementation and tests enforce:
   bounded printable title/body, bounded file counts and sizes, and repository-relative
   paths with no traversal, no .git/, and no workflow writes. Idempotency keys make
   retries return the existing pull request; a key mismatch on an existing branch is a
-  typed conflict, and mutations are never retried after they may have applied.
+  typed conflict, and mutations are never retried after they may have applied. An
+  optional expected base commit rejects stale snapshot-derived full-file writes before
+  mutation while preserving replay of an already-created idempotent branch.
+- Ground-truth requests compose fetch, live status, and open_pr against the fixed
+  `docs/ground_truth_requests.md`; they add no tool or credential. The engine document
+  is append-only, the fetched and live commits must match, and open_pr enforces that
+  same expected base commit before creating a branch.
 - The engine service and optional gateway-development service each load exactly one
   fully validated, non-writable snapshot and never switch it in-process.
 - Content IDs bind repository-relative paths to the active commit; stale IDs fail.
