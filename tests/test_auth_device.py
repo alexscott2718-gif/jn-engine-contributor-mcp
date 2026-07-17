@@ -288,6 +288,8 @@ def test_device_flow_authorizes_same_principal_for_mcp_and_rest(
         "search",
         "fetch",
         "list_tasks",
+        "claim_task",
+        "release_task",
         "project_context",
         "lookup_symbol",
         "check_status",

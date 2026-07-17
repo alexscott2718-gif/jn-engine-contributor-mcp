@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jn-engine-contributor-mcp"
 version = "0.1.0"
-description = "Read-only REST and MCP gateway for JN Engine contributors"
+description = "Bounded REST and MCP gateway for JN Engine contributors"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "authlib==1.7.2",

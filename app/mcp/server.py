@@ -1,4 +1,4 @@
-"""Seven authenticated MCP tools: six reads plus the PR-only write path."""
+"""Nine authenticated MCP tools over one immutable JN Engine snapshot."""
 
 from __future__ import annotations
 
@@ -17,6 +17,11 @@ from app.core.check_status import (
     CredentialUnavailableStatusService,
 )
 from app.core.open_pr import OpenPrService, WriteDisabledOpenPrService
+from app.core.task_claims import (
+    DEFAULT_CLAIM_MINUTES,
+    TaskClaimService,
+    WriteDisabledTaskClaimService,
+)
 from app.core.content_search import (
     ContentSearch,
     SearchEngineError,
@@ -40,6 +45,12 @@ from app.models.content import (
     SearchToolOutput,
     fetch_output,
     search_tool_output,
+)
+from app.models.claims import (
+    ClaimTaskOutput,
+    ReleaseTaskOutput,
+    claim_task_output,
+    release_task_output,
 )
 from app.models.projects import ProjectContextOutput, project_context_output
 from app.models.symbols import SymbolLookupOutput, symbol_lookup_output
@@ -70,6 +81,13 @@ PR_WRITE_ANNOTATIONS = {
     "openWorldHint": True,
 }
 
+TASK_WRITE_ANNOTATIONS = {
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
+
 
 def _caller_identity() -> str:
     """Extract a bounded identity claim; never use or log the bearer itself."""
@@ -96,13 +114,14 @@ def create_mcp_server(
     symbols: SymbolIndex,
     statuses: CheckStatusService | CredentialUnavailableStatusService,
     pr_writes: OpenPrService | WriteDisabledOpenPrService,
+    task_claims: TaskClaimService | WriteDisabledTaskClaimService,
 ) -> FastMCP:
     server = FastMCP(
         settings.app_name,
         version="0.1.0",
         instructions=(
-            "Read-only access to the immutable JN Engine source, design, task, and "
-            "reverse-engineering snapshot. Search first, then fetch a selected ID."
+            "Access the immutable JN Engine source, design, task, and reverse-engineering "
+            "snapshot. Search first, claim a task before work, then release it when done."
         ),
         auth=auth,
         mask_error_details=True,
@@ -171,6 +190,58 @@ def create_mcp_server(
             return task_list_output(result, tasks.snapshot)
         except TaskRequestError as exc:
             raise ToolError("invalid task request") from exc
+
+    @server.tool(
+        description=(
+            "Claim one exact committed open or blocked task for the authenticated "
+            "caller. Ownership expires automatically; an idempotency_key makes "
+            "retries return the same claim."
+        ),
+        output_schema=ClaimTaskOutput.model_json_schema(),
+        annotations=TASK_WRITE_ANNOTATIONS,
+    )
+    def claim_task(
+        task_id: Annotated[str, Field(min_length=1, max_length=256)],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=64)],
+        duration_minutes: Annotated[
+            int,
+            Field(ge=15, le=1_440),
+        ] = DEFAULT_CLAIM_MINUTES,
+    ) -> ClaimTaskOutput:
+        try:
+            return claim_task_output(
+                task_claims.claim_task(
+                    task_id=task_id,
+                    duration_minutes=duration_minutes,
+                    idempotency_key=idempotency_key,
+                    caller_identity=_caller_identity(),
+                )
+            )
+        except CollaborationError as exc:
+            raise tool_error(exc) from exc
+
+    @server.tool(
+        description=(
+            "Release one claim owned by the authenticated caller. The claim_id "
+            "prevents a delayed retry from releasing a newer claim."
+        ),
+        output_schema=ReleaseTaskOutput.model_json_schema(),
+        annotations=TASK_WRITE_ANNOTATIONS,
+    )
+    def release_task(
+        task_id: Annotated[str, Field(min_length=1, max_length=256)],
+        claim_id: Annotated[str, Field(min_length=24, max_length=24)],
+    ) -> ReleaseTaskOutput:
+        try:
+            return release_task_output(
+                task_claims.release_task(
+                    task_id=task_id,
+                    claim_id=claim_id,
+                    caller_identity=_caller_identity(),
+                )
+            )
+        except CollaborationError as exc:
+            raise tool_error(exc) from exc
 
     @server.tool(
         description=(

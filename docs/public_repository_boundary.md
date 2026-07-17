@@ -10,7 +10,7 @@ reintroduced accidentally.
 - Complete REST and MCP application source.
 - GitHub OAuth, device OAuth, and loopback-only local authentication modes.
 - Immutable snapshot exporters and validators.
-- The six-tool engine profile and three-tool source profile.
+- The nine-tool engine profile and three-tool source profile.
 - Unit, integration, protocol, and container-contract tests.
 - Generic Docker, Compose, CI, environment, and tunnel examples.
 - Contributor, deployment, security, API, and intended-usage documentation.

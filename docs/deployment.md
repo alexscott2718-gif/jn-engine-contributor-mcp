@@ -48,6 +48,10 @@ required only when `ENABLE_WRITE_ACTIONS=true` and must never be the collaborato
 Actions credential. Generate a new signing key for each deployment; never reuse a
 sample value from documentation or tests.
 
+`ENABLE_WRITE_ACTIONS=true` also enables `claim_task` and `release_task` only on the
+authenticated engine profile. Those ownership tools never receive or use the GitHub
+write credential; their only mutable target is the durable mode-0600 audit ledger.
+
 ## Build a Snapshot
 
 The application never runs Git. An operator-side command creates and validates a fixed

@@ -1,6 +1,6 @@
 # JN Engine Contributor MCP
 
-A read-only REST and Streamable HTTP MCP gateway for contributors working on
+A bounded REST and Streamable HTTP MCP gateway for contributors working on
 [JN Engine](https://github.com/alexscott2718-gif/jn-engine). It exposes a reviewed,
 immutable repository snapshot to ChatGPT, Claude, MCP-compatible coding agents, and
 ordinary HTTP clients without giving those clients shell or Git access to the host.
@@ -12,12 +12,14 @@ records, incident reports, or mutable operator data.
 
 ## What It Provides
 
-The engine profile exposes six read-only tools:
+The engine profile exposes nine tools:
 
 - `search` and `fetch` for commit-bound source and documentation retrieval;
 - `list_tasks` and `project_context` for bounded project orientation;
+- `claim_task` and `release_task` for audited, expiring task ownership;
 - `lookup_symbol` for recovered symbol/address lookup; and
-- `check_status` for fail-closed `core` and `assets` GitHub Actions status.
+- `check_status` for fail-closed `core` and `assets` GitHub Actions status;
+- `open_pr` for a narrowly constrained contributor pull-request path.
 
 An optional source profile exposes this repository itself through `search`, `fetch`,
 and `repository_context`. That profile lets a web or app-based agent inspect the MCP
@@ -39,7 +41,7 @@ Only environment-specific material was excluded. Contributors can:
 - create snapshots from the public JN Engine repository;
 - exercise either MCP profile locally without authentication;
 - configure their own GitHub OAuth deployment;
-- develop new read-only tools and submit pull requests; and
+- develop new bounded tools and submit pull requests; and
 - use the source profile to ground ChatGPT or Claude in this implementation.
 
 See [Intended Usage](docs/intended_usage.md) for contributor and operator workflows,
@@ -100,7 +102,8 @@ Production GitHub OAuth configuration and secret-file permissions are documented
 - OAuth state is encrypted before being stored in a mode-0700 file-tree directory.
 - Secret values are accepted through mode-0600 files, not command-line arguments or
   URLs.
-- Write and shell actions fail startup when enabled.
+- Write actions require the authenticated engine profile and a dedicated PR token;
+  shell actions always fail startup when enabled.
 - The container runs non-root with a read-only root filesystem, no capabilities, no
   Docker socket, and no Git executable.
 

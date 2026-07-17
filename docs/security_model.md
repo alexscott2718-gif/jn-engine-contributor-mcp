@@ -24,14 +24,20 @@ The implementation and tests enforce:
   ref — never refs/heads/master, which branch protection independently enforces.
 - OAuth proxy state is encrypted and confined to the mode-0700 secrets mount.
 - Secrets are mode-0600 files and are never accepted in URLs.
-- The shell flag fails startup when true. The write flag enables only the audited,
-  PR-only open_pr tool; it requires the engine profile, an authenticated deployment,
-  and the mounted mode-0600 pull-request credential, and it fails startup otherwise.
-  With the flag off, open_pr is registered but fails closed with write_disabled.
-- Every live status call and every open_pr call is appended and fsynced as sanitized
+- The shell flag fails startup when true. The write flag enables only the audited
+  claim_task, release_task, and PR-only open_pr tools; it requires the engine profile,
+  an authenticated deployment, and the mounted mode-0600 pull-request credential,
+  and it fails startup otherwise. Claims never receive or use that credential. With
+  the flag off, all three tools remain registered but fail closed with write_disabled.
+- Every live status, claim, release, and open_pr call is appended and fsynced as sanitized
   NDJSON on the dedicated audit mount. Proposed file contents, the bearer, and the
   outbound GitHub credentials are never record fields; an unavailable audit sink
   fails the call.
+- Claim ownership is derived only from the authenticated principal. Claim decisions
+  and their audit event are one locked append to the same mode-0600 ledger; expiry is
+  15 minutes through 24 hours, idempotency replays the same claim, competing callers
+  conflict, and release requires both ownership and the opaque claim ID. Malformed,
+  partial, oversized, linked, or incorrectly permissioned ledgers fail closed.
 - open_pr validates every input before any network use: a contrib/ branch allowlist,
   bounded printable title/body, bounded file counts and sizes, and repository-relative
   paths with no traversal, no .git/, and no workflow writes. Idempotency keys make

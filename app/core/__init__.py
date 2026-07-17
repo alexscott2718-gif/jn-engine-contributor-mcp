@@ -1,1 +1,1 @@
-"""Protocol-independent read-only core."""
+"""Protocol-independent bounded gateway core."""

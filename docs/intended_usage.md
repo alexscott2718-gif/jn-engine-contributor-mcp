@@ -12,29 +12,33 @@ solves two related problems:
    even when ChatGPT or Claude's account-level GitHub connection is not exposed as a
    callable tool in that conversation.
 
-The gateway is a context and verification service. It is not a remote development
-machine, deployment control plane, general GitHub proxy, or autonomous pull-request
-writer.
+The gateway is a context, coordination, and verification service with one constrained
+pull-request proposal path. It is not a remote development machine, deployment control
+plane, general GitHub proxy, or autonomous merger.
 
 ## The Two MCP Profiles
 
 ### Engine profile
 
 The engine profile serves an immutable snapshot of the JN Engine repository and
-registers six tools:
+registers nine tools:
 
 - `search`: locate relevant source or documentation and return commit-bound IDs.
 - `fetch`: retrieve bounded text for an ID returned by the current snapshot.
 - `list_tasks`: inspect committed task records using structured filters.
+- `claim_task`: take audited ownership of an exact open or blocked task until expiry.
+- `release_task`: relinquish an owned claim using its returned claim ID.
 - `project_context`: obtain a bounded orientation bundle for a new task.
 - `lookup_symbol`: find recovered names, addresses, classes, and FourCC values.
 - `check_status`: verify required `core` and `assets` GitHub Actions contexts for a
   branch, pull request, or exact commit.
+- `open_pr`: create a bounded `contrib/` branch and pull request for human review.
 
 Use this profile when implementing or reviewing JN Engine changes. A strong workflow
-is: request project context, run a fresh search, fetch only the relevant files, perform
-the work in a local checkout, then call `check_status` before considering the change
-ready. Search again whenever fetch reports that the snapshot changed.
+is: request project context, list and claim an exact task, run a fresh search, fetch
+only the relevant files, perform the work in a local checkout, release ownership when
+stopping, and call `check_status` before considering the change ready. Search again
+whenever fetch reports that the snapshot changed.
 
 ### Source profile
 
@@ -79,7 +83,7 @@ For a deployed HTTPS endpoint:
    workspace.
 2. Create an MCP app using the operator-provided `/mcp` URL.
 3. Choose OAuth when prompted, scan the advertised tools, and complete GitHub login.
-4. Select the app in a conversation and verify the expected six engine tools or three
+4. Select the app in a conversation and verify the expected nine engine tools or three
    source tools.
 
 Create the engine and source profiles as separate apps because they have different
@@ -109,9 +113,10 @@ local development, point it to `http://127.0.0.1:8788/mcp` while the server runs
 `authless_local` mode. Do not expose authless mode through a tunnel, reverse proxy,
 container host wildcard, or LAN address.
 
-The MCP provides evidence; the coding agent still needs a separate local checkout to
-edit, build, and commit code. This separation is intentional. A compromised or confused
-chat client cannot mutate the snapshot or invoke a shell through this service.
+The MCP provides evidence and coordination; the coding agent still needs a separate
+local checkout to edit, build, and commit code. This separation is intentional. A
+compromised or confused chat client cannot mutate the snapshot, invoke a shell, or
+merge to the protected branch through this service.
 
 ## Operator Workflow
 
@@ -157,11 +162,10 @@ The public gateway does not:
 - expose a private vault or operator filesystem;
 - provide arbitrary repository selection;
 - execute Git, shell commands, builds, or game binaries;
-- write branches, issues, releases, or pull requests;
+- write issues, releases, protected branches, or arbitrary repository refs;
 - distribute shared authentication credentials;
 - validate subjective visual/audio parity that requires original hardware; or
 - make private identities anonymous to infrastructure providers.
 
-Future write capabilities, if ever introduced, belong in a separately reviewed service
-with explicit confirmation, narrowly scoped GitHub App permissions, deterministic patch
-previews, replay protection, and mandatory human review.
+Additional write capabilities require separate review, narrow permissions, replay
+protection, durable audit, and mandatory human review.
