@@ -15,6 +15,7 @@ from app.core.snapshot import MAX_FILE_BYTES, Snapshot
 DECOMP_PATH = "docs/decomp_ledger.csv"
 CLASS_IDS_PATH = "docs/_gam_classids.tsv"
 LINKAGE_PATH = "docs/linkage_certificates.csv"
+GAM_SCHEMA_PATH = "docs/gam_schema.md"
 DECOMP_DOCS_PREFIX = "docs/decomp/"
 
 MAX_SYMBOL_RECORDS = 50_000
@@ -60,6 +61,8 @@ ADDRESS_PATTERN = re.compile(
 ADDRESS_INPUT_PATTERN = re.compile(r"(?i)^(?:0x|FUN_|@)?([0-9a-f]{8})$")
 FOURCC_PATTERN = re.compile(r"^[\x20-\x7e]{4}$")
 EXPLICIT_FOURCC_PATTERN = re.compile(r"^`([\x20-\x7e]{4})`(?:\s|$)")
+# LEV1..LEV7 identify level classes, never placeable objects.
+_LEVEL_CLASS_ID = re.compile(r"^LEV\d$")
 
 
 class SymbolKind(StrEnum):
@@ -72,6 +75,32 @@ class LinkageStatus(StrEnum):
     LINKED = "linked"
     LINKED_BLOCKED = "linked-blocked"
 
+
+
+def _parse_dominant_object_tags(text: str) -> dict[str, str]:
+    """FourCC -> dominant ObjectTag, from gam_schema.md's instance table.
+
+    This is shipped-level-data evidence: which class name the level authors put on
+    the instances of each type. Weaker than a registrar row, strong enough to
+    contradict a spec that claims someone else's FourCC.
+    """
+    tags: dict[str, str] = {}
+    in_table = False
+    for line in text.split("\n"):
+        if line.startswith("## Object types"):
+            in_table = True
+            continue
+        if in_table and line.startswith("## "):
+            break
+        if not in_table:
+            continue
+        match = re.match(
+            r"^\|\s*`([^`]{4})`\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*(.*?)\s*\|\s*$",
+            line,
+        )
+        if match and match.group(2):
+            tags[match.group(1).casefold()] = match.group(2).strip().casefold()
+    return tags
 
 class SymbolIndexError(RuntimeError):
     """A canonical symbol source violates its frozen grammar."""
@@ -279,6 +308,17 @@ class SymbolIndex:
             for row in ledger
         }
         linkage = self._parse_linkage(canonical_classes)
+        self._quarantined: dict[str, str] = {}
+        tag_file = snapshot.files_by_path.get(GAM_SCHEMA_PATH)
+        object_tags: dict[str, str] = {}
+        if tag_file is not None:
+            try:
+                object_tags = _parse_dominant_object_tags(
+                    tag_file.path.read_text(encoding="utf-8", errors="replace")
+                )
+            except OSError:
+                object_tags = {}
+        self._object_tags = object_tags
         self._validate_explicit_fourccs(ledger, docs, class_ids)
 
         records = self._build_records(ledger, class_ids, docs, linkage)
@@ -586,6 +626,42 @@ class SymbolIndex:
             if explicit is not None and committed and explicit.casefold() not in committed:
                 raise SymbolIndexError("class document conflicts with canonical FourCC rows")
 
+    @staticmethod
+    def _fourcc_is_contradicted(
+        class_key: str,
+        explicit: str,
+        committed: set[str],
+        owners: "defaultdict[str, set[str]]",
+        level_ids: set[str],
+        object_tags: dict[str, str],
+    ) -> bool:
+        """True when the registrar scan contradicts a class document's FourCC.
+
+        Only fires when the class has no registrar row of its own naming that
+        FourCC, so a correctly-documented class is never suppressed.
+        """
+        folded = explicit.casefold()
+        if folded in committed:
+            return False
+        if folded in level_ids:
+            return True          # a level class id is not a placeable object's FourCC
+        if owners.get(folded, set()) - {class_key}:
+            return True          # the scan assigns it to a different named class
+        if object_tags:
+            claimed_tag = object_tags.get(folded)
+            if claimed_tag is not None and claimed_tag != class_key:
+                # The shipped levels tag this FourCC's instances with a different
+                # class name. Only suppress when the corpus also names *this* class
+                # somewhere, so an unrelated tag string cannot veto a valid claim.
+                if class_key in set(object_tags.values()):
+                    return True
+        return False
+
+    @property
+    def quarantined_fourccs(self) -> dict[str, str]:
+        """class name -> the FourCC its document claims but the scan contradicts."""
+        return dict(self._quarantined)
+
     def _class_fourccs(
         self,
         ledger: tuple[_LedgerRow, ...],
@@ -594,17 +670,31 @@ class SymbolIndex:
     ) -> dict[str, str | None]:
         by_class: defaultdict[str, set[str]] = defaultdict(set)
         orientation: dict[tuple[str, str], str] = {}
+        owners: defaultdict[str, set[str]] = defaultdict(set)
+        level_ids: set[str] = set()
         for row in class_ids:
+            folded = row.fourcc.casefold()
+            if _LEVEL_CLASS_ID.match(row.fourcc):
+                level_ids.add(folded)
+                level_ids.add(row.fourcc[::-1].casefold())
             if row.canonical_class is None:
                 continue
             key = row.canonical_class.casefold()
-            folded = row.fourcc.casefold()
             by_class[key].add(folded)
             orientation[(key, folded)] = row.fourcc
+            owners[folded].add(key)
         selected: dict[str, str | None] = {}
         for row in ledger:
             key = row.class_name.casefold()
             explicit = docs[row.class_name].explicit_fourcc
+            if explicit is not None and self._fourcc_is_contradicted(
+                key, explicit, by_class[key], owners, level_ids, self._object_tags
+            ):
+                # The class document asserts a FourCC the registrar scan contradicts.
+                # Serve nothing rather than serve it; the class stays queryable by
+                # name and address.
+                self._quarantined[row.class_name] = explicit
+                explicit = None
             if explicit is not None:
                 selected[key] = explicit
             elif len(by_class[key]) == 1:
