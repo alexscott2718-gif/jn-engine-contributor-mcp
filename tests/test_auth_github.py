@@ -262,7 +262,7 @@ def test_github_mode_mounts_discovery_and_challenges_mcp(github_settings):
         os.environ.get(
             "JN_TEST_SNAPSHOT_PATH",
             "/srv/jn-engine-contributor-mcp/test-snapshots/"
-            "925242073a771aa68996c294aec8cc41cb43a0ef",
+            "3527c51850b170f5febb530c69281e6877e6437d",
         )
     )
     settings = github_settings.model_copy(

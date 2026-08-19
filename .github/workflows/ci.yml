@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           repository: alexscott2718-gif/jn-engine
-          ref: 925242073a771aa68996c294aec8cc41cb43a0ef
+          ref: 3527c51850b170f5febb530c69281e6877e6437d
           path: .ci/jn-engine-source
           persist-credentials: false
       - name: Install test dependencies
@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          commit=925242073a771aa68996c294aec8cc41cb43a0ef
+          commit=3527c51850b170f5febb530c69281e6877e6437d
           mkdir -p "$JN_TEST_SNAPSHOT_PATH/content"
           git -C .ci/jn-engine-source archive "$commit" \
             | tar -x -C "$JN_TEST_SNAPSHOT_PATH/content"

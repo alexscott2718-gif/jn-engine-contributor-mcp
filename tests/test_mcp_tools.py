@@ -34,7 +34,7 @@ REAL_SNAPSHOT = Path(
     os.environ.get(
         "JN_TEST_SNAPSHOT_PATH",
         "/srv/jn-engine-contributor-mcp/test-snapshots/"
-        "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "3527c51850b170f5febb530c69281e6877e6437d",
     )
 )
 EXPECTED_TOOLS = [
@@ -301,7 +301,7 @@ def test_search_then_fetch_has_matching_structured_and_json_content(mcp_server):
     assert set(hits[0]) == {"id", "title", "url"}
     assert hits[0]["id"].startswith("jn1_")
     assert hits[0]["title"] == "C3DPlayer"
-    assert "/blob/925242073a771aa68996c294aec8cc41cb43a0ef/" in hits[0]["url"]
+    assert "/blob/3527c51850b170f5febb530c69281e6877e6437d/" in hits[0]["url"]
 
     fetched = _run(tools["fetch"], {"id": hits[0]["id"]})
     assert json.loads(fetched.content[0].text) == fetched.structured_content
@@ -315,7 +315,7 @@ def test_search_then_fetch_has_matching_structured_and_json_content(mcp_server):
         "language": "markdown",
         "repository": "alexscott2718-gif/jn-engine",
         "ref": "refs/heads/master",
-        "commit": "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "commit": "3527c51850b170f5febb530c69281e6877e6437d",
         "text_chars": len(record["text"]),
         "truncated": False,
     }
@@ -349,7 +349,7 @@ def test_official_mcp_sdk_lists_nine_tools_and_searches_then_fetches(live_mcp_ur
     assert fetched.isError is False
     assert fetched.structuredContent["title"] == "C3DPlayer"
     assert fetched.structuredContent["metadata"]["commit"] == (
-        "925242073a771aa68996c294aec8cc41cb43a0ef"
+        "3527c51850b170f5febb530c69281e6877e6437d"
     )
     assert json.loads(fetched.content[0].text) == fetched.structuredContent
 
@@ -374,9 +374,9 @@ def test_task_tool_uses_only_committed_sources(mcp_server):
         _tools(mcp_server)["list_tasks"],
         {"status": "all", "source": "linkage", "limit": 50},
     ).structured_content
-    assert body["count"] == 29
+    assert body["count"] == 31
     assert body["snapshot"]["commit"] == (
-        "925242073a771aa68996c294aec8cc41cb43a0ef"
+        "3527c51850b170f5febb530c69281e6877e6437d"
     )
     assert {task["source_kind"] for task in body["tasks"]} == {"linkage"}
     assert "issues" not in json.dumps(body).casefold()
@@ -391,7 +391,9 @@ def test_project_context_tool_is_bounded_and_grounded(mcp_server):
     assert len(body["context"]) <= 1_000
     assert len(body["important_files"]) == 8
     assert len(body["open_tasks"]) == 10
-    assert any("Stale branch notice" in state for state in body["current_state"])
+    assert any(
+        "Committed linkage certificates" in state for state in body["current_state"]
+    )
 
 
 @pytest.mark.parametrize(

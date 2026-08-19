@@ -14,7 +14,7 @@ from app.core.snapshot import (
     compute_content_inventory,
 )
 
-GROUNDING_COMMIT = "925242073a771aa68996c294aec8cc41cb43a0ef"
+GROUNDING_COMMIT = "3527c51850b170f5febb530c69281e6877e6437d"
 
 
 @pytest.fixture()
