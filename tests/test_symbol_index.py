@@ -28,7 +28,7 @@ REAL_SNAPSHOT = Path(
     os.environ.get(
         "JN_TEST_SNAPSHOT_PATH",
         "/srv/jn-engine-contributor-mcp/test-snapshots/"
-        "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "3527c51850b170f5febb530c69281e6877e6437d",
     )
 )
 
@@ -348,7 +348,7 @@ def test_real_symbol_grounding_and_required_counts():
     assert REAL_SNAPSHOT.is_dir()
     index = SymbolIndex(validate_snapshot(REAL_SNAPSHOT))
     assert index.decomp_row_count == 208
-    assert index.linkage_row_count == 29
+    assert index.linkage_row_count == 31
     assert index.class_id_row_count == 238
 
     player = index.lookup(name="C3DPlayer", limit=50)

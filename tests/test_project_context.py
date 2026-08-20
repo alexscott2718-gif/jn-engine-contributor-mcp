@@ -34,7 +34,7 @@ REAL_SNAPSHOT = Path(
     os.environ.get(
         "JN_TEST_SNAPSHOT_PATH",
         "/srv/jn-engine-contributor-mcp/test-snapshots/"
-        "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "3527c51850b170f5febb530c69281e6877e6437d",
     )
 )
 
@@ -399,6 +399,5 @@ def test_real_project_context_grounding():
     assert len(result.open_tasks) == 10
     assert len(result.context) <= 12_000
     state = "\n".join(result.current_state)
-    assert "native-port" in state
-    assert "refs/heads/master" in state
-    assert "2026-07-04" in state
+    assert "Committed linkage certificates" in state
+    assert "2026-07-18" in state

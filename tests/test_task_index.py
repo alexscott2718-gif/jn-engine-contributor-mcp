@@ -33,7 +33,7 @@ REAL_SNAPSHOT = Path(
     os.environ.get(
         "JN_TEST_SNAPSHOT_PATH",
         "/srv/jn-engine-contributor-mcp/test-snapshots/"
-        "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "3527c51850b170f5febb530c69281e6877e6437d",
     )
 )
 
@@ -340,7 +340,7 @@ def test_real_task_grounding_counts_and_statuses():
     index = TaskIndex(validate_snapshot(REAL_SNAPSHOT))
     counts = Counter(task.source_kind for task in index.tasks)
     assert counts[TaskSourceKind.DECOMP] == 208
-    assert counts[TaskSourceKind.LINKAGE] == 29
+    assert counts[TaskSourceKind.LINKAGE] == 31
     assert counts[TaskSourceKind.HANDOFF] > 0
     assert counts[TaskSourceKind.QA] > 0
     assert counts[TaskSourceKind.CATALOG] > 0

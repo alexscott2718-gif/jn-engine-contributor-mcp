@@ -32,7 +32,7 @@ REAL_SNAPSHOT = Path(
     os.environ.get(
         "JN_TEST_SNAPSHOT_PATH",
         "/srv/jn-engine-contributor-mcp/test-snapshots/"
-        "925242073a771aa68996c294aec8cc41cb43a0ef",
+        "3527c51850b170f5febb530c69281e6877e6437d",
     )
 )
 
@@ -287,11 +287,11 @@ def test_verified_production_settings_build_complete_app(github_settings):
 def test_ops_validator_builds_real_indexes_before_promotion():
     result = validate_and_build(REAL_SNAPSHOT, require_read_only=True)
     assert result["commit"] == GROUNDING_COMMIT
-    assert result["file_count"] == 665
+    assert result["file_count"] == 692
     assert result["decomp_rows"] == 208
     assert result["class_id_rows"] == 238
-    assert result["linkage_rows"] == 29
-    assert result["task_records"] == 267
+    assert result["linkage_rows"] == 31
+    assert result["task_records"] == 266
     assert result["symbol_records"] == 2_500
 
 
