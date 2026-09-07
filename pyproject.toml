@@ -9,7 +9,7 @@ description = "Bounded REST and MCP gateway for JN Engine contributors"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "authlib==1.7.2",
-  "cryptography==49.0.0",
+  "cryptography==50.0.0",
   "fastapi==0.139.0",
   "fastmcp==3.4.4",
   "httpx==0.28.1",
